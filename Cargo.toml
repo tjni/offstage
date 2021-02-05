@@ -1,0 +1,12 @@
+[package]
+name = "offstage"
+version = "0.1.0"
+authors = ["Theodore Ni <3806110+tjni@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+git2 = "0.13.17"
+itertools = "0.10.0"
+
+[dev-dependencies]
+tempfile = "3.2.0"
