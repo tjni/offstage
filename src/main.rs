@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use structopt::StructOpt;
+use git::GitRepository;
 
 mod git;
 
@@ -22,9 +23,9 @@ struct Args {
 fn main() {
     let args = Args::from_args();
 
-    let mut repository = git::open_repository();
+    let mut repository = GitRepository::open();
 
-    let snapshot = git::save_snapshot_stash(&mut repository);
+    let snapshot = repository.save_snapshot_stash();
 
     println!("Snapshot: {:?}", snapshot);
 
