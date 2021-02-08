@@ -10,19 +10,32 @@ pub struct GitRepository {
 
 impl GitRepository {
 
-    pub fn open() -> Self {
-        Self {
-            repository: Repository::open_from_env().expect("Repository could not be opened."),
-        }
+    pub fn open() -> Result<Self> {
+        let repository = Repository::open_from_env()
+            .with_context(|| "Encountered an error when opening the Git repository.")?;
+
+        Ok(Self { repository, })
     }
 
-    pub fn save_snapshot_stash(&mut self) -> Result<Option<Oid>> {
+    pub fn save_snapshot(&mut self) -> Result<()> {
+        let head_tree = self.repository.head()?.peel_to_tree()?;
+
+        let diff = self.repository.diff_tree_to_index(Some(&head_tree), None, None)?;
+
+        for delta in diff.deltas() {
+            println!("delta: {:?}", delta);
+        }
+
+        Ok(())
+    }
+
+    fn save_snapshot_stash(&mut self) -> Result<Option<Oid>> {
         // Save state when in the middle of a merge prior to stashing changes in
         // the working directory so that we can restore it afterward.
         let merge_status = self.save_merge_status()?;
 
         let dummy_signature = Signature::now("Offstage Dummy User", "dummy@example.com")
-            .with_context(|| "Encountered an error when creating a dummy authorship information.")?;
+            .with_context(|| "Encountered an error when creating dummy authorship information.")?;
 
         let stash_result = self.repository.stash_save(
             &dummy_signature,

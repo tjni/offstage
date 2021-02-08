@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::path::PathBuf;
 use std::process;
 use std::process::Command;
@@ -20,14 +21,12 @@ struct Args {
     command: Vec<String>,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::from_args();
 
-    let mut repository = GitRepository::open();
+    let mut repository = GitRepository::open()?;
 
-    let snapshot = repository.save_snapshot_stash();
-
-    println!("Snapshot: {:?}", snapshot);
+    repository.save_snapshot();
 
     let status = Command::new(&args.shell)
         .arg("-c")
