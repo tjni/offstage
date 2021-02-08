@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use structopt::StructOpt;
-use git::GitRepository;
+use git::GitWorkflow;
 
 mod git;
 
@@ -24,19 +24,19 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::from_args();
 
-    let mut repository = GitRepository::open()?;
+    let mut repository = GitWorkflow::open()?;
 
-    repository.save_snapshot();
+    repository.save_snapshot()?;
 
     let status = Command::new(&args.shell)
         .arg("-c")
-        .arg(join_command(&args))
+        .arg(join_commands(&args))
         .status()
         .unwrap();
 
     process::exit(status.code().unwrap_or(1));
 }
 
-fn join_command(args: &Args) -> String {
+fn join_commands(args: &Args) -> String {
     args.command.join(" ")
 }

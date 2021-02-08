@@ -1,6 +1,16 @@
 use anyhow::{anyhow, Context, Result};
-use git2::{Delta, ErrorCode, Oid, Repository, Signature, StashFlags};
+use git2::{
+    Delta,
+    ErrorCode,
+    Oid,
+    Repository,
+    ResetType,
+    Signature,
+    StashApplyOptions,
+    StashFlags
+};
 use itertools::Itertools;
+use std::cell::{RefCell};
 use std::collections::HashSet;
 use std::fs;
 use std::hash::Hash;
@@ -8,11 +18,11 @@ use std::io::ErrorKind::NotFound;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
-pub struct GitRepository {
+pub struct GitWorkflow {
     repository: Repository,
 }
 
-impl GitRepository {
+impl GitWorkflow {
 
     pub fn open() -> Result<Self> {
         let repository = Repository::open_from_env()
@@ -21,21 +31,75 @@ impl GitRepository {
         Ok(Self { repository, })
     }
 
-    pub fn save_snapshot(&mut self) -> Result<()> {
-        let partially_staged_files = self.get_partially_staged_files()?;
+    pub fn save_snapshot(&mut self) -> Result<Snapshot> {
+        let mut inner = || -> Result<Snapshot> {
+            let partially_staged_files = self.get_partially_staged_files()?;
 
-        let deleted_files = self.get_deleted_files()?;
+            let deleted_files = self.get_deleted_files()?;
 
-        println!("Partially staged {:?}", partially_staged_files);
-        // println!("Deleted {:?}", deleted_files);
+            println!("Partially staged {:?}", partially_staged_files);
+            // println!("Deleted {:?}", deleted_files);
 
-        //let stash = self.save_snapshot_stash()?;
+            let backup_stash = self.save_snapshot_stash()?;
 
-        // Because `git stash` restores the HEAD commit, it brings back uncommitted
-        // deleted files. We need to clear them before creating our snapshot.
-        Self::delete_files(&deleted_files)?;
+            // Because `git stash` restores the HEAD commit, it brings back uncommitted
+            // deleted files. We need to clear them before creating our snapshot.
+            Self::delete_files(&deleted_files)?;
 
-        Ok(())
+            Ok(Snapshot { backup_stash })
+        };
+
+        inner().with_context(|| "Encountered an error when saving a snapshot.")
+    }
+
+    pub fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<()> {
+        let inner = || -> Result<()> {
+            self.hard_reset()?;
+
+            if let Some(backup_stash) = snapshot.backup_stash {
+                let stash_index = self.get_stash_index_from_id(&backup_stash.stash_id)?.ok_or_else(|| 
+                    anyhow!("Could not find a backup stash with id {}.", &backup_stash.stash_id))?;
+
+                self.repository.stash_apply(stash_index,
+                    Some(StashApplyOptions::default().reinstantiate_index()))?;
+
+                self.restore_merge_status(&backup_stash.merge_status)?;
+            }
+
+            Ok(())
+        };
+
+        inner().with_context(|| "Encountered an error when restoring snapshot after another error.")
+    }
+
+    fn hard_reset(&self) -> Result<()> {
+        let head = self.repository.head()?.peel_to_tree()?;
+
+        self.repository.reset(head.as_object(), ResetType::Hard, None)
+            .map_err(|error| anyhow!(error))
+    }
+
+    fn get_stash_index_from_id(&mut self, stash_id: &Oid) -> Result<Option<usize>> {
+        // It would be much better if libgit2 accepted a stash Oid
+        // instead of an index from the stash list.
+        let ref_stash_index = RefCell::new(None);
+        
+        self.repository.stash_foreach(|index, _, oid| {
+            if oid == stash_id {
+                *ref_stash_index.borrow_mut() = Some(index);
+                false
+            } else {
+                true
+            }
+        })?;
+
+        // Copy the data out of the RefCell.
+        let stash_index = match *ref_stash_index.borrow() {
+            Some(index) => Some(index),
+            None => None,
+        };
+
+        Ok(stash_index)
     }
 
     fn get_partially_staged_files(&self) -> Result<HashSet<PathBuf>> {
@@ -80,7 +144,7 @@ impl GitRepository {
         Ok(deleted_files)
     }
 
-    fn save_snapshot_stash(&mut self) -> Result<Option<Oid>> {
+    fn save_snapshot_stash(&mut self) -> Result<Option<Stash>> {
         // Save state when in the middle of a merge prior to stashing changes in
         // the working directory so that we can restore it afterward.
         let merge_status = self.save_merge_status()?;
@@ -91,13 +155,11 @@ impl GitRepository {
         let stash_result = self.repository.stash_save(
             &dummy_signature,
             "offstage backup",
-            Some(StashFlags::INCLUDE_UNTRACKED | StashFlags::KEEP_INDEX),
+            Some(StashFlags::KEEP_INDEX),
         );
 
-        self.restore_merge_status(&merge_status)?;
-
         match stash_result {
-            Ok(stash_id) => Ok(Some(stash_id)),
+            Ok(stash_id) => Ok(Some(Stash { stash_id, merge_status })),
             Err(error) if error.code() == ErrorCode::NotFound => Ok(None),
             Err(error) => Err(anyhow!(error).context(
                 "Encountered an error when stashing a backup of the working directory.")),
@@ -164,6 +226,17 @@ impl GitRepository {
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub struct Snapshot {
+    backup_stash: Option<Stash>,
+}
+
+#[derive(Debug)]
+struct Stash {
+    stash_id: Oid,
+    merge_status: MergeStatus,
 }
 
 #[derive(Debug)]
