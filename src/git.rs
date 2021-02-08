@@ -1,8 +1,12 @@
 use anyhow::{anyhow, Context, Result};
-use git2::{ErrorCode, Oid, Repository, Signature, StashFlags};
+use git2::{Delta, ErrorCode, Oid, Repository, Signature, StashFlags};
+use itertools::Itertools;
+use std::collections::HashSet;
 use std::fs;
+use std::hash::Hash;
 use std::io::ErrorKind::NotFound;
-use std::path::Path;
+use std::iter::FromIterator;
+use std::path::{Path, PathBuf};
 
 pub struct GitRepository {
     repository: Repository,
@@ -18,15 +22,62 @@ impl GitRepository {
     }
 
     pub fn save_snapshot(&mut self) -> Result<()> {
-        let head_tree = self.repository.head()?.peel_to_tree()?;
+        let partially_staged_files = self.get_partially_staged_files()?;
 
-        let diff = self.repository.diff_tree_to_index(Some(&head_tree), None, None)?;
+        let deleted_files = self.get_deleted_files()?;
 
-        for delta in diff.deltas() {
-            println!("delta: {:?}", delta);
-        }
+        println!("Partially staged {:?}", partially_staged_files);
+        // println!("Deleted {:?}", deleted_files);
+
+        //let stash = self.save_snapshot_stash()?;
+
+        // Because `git stash` restores the HEAD commit, it brings back uncommitted
+        // deleted files. We need to clear them before creating our snapshot.
+        Self::delete_files(&deleted_files)?;
 
         Ok(())
+    }
+
+    fn get_partially_staged_files(&self) -> Result<HashSet<PathBuf>> {
+        let head_tree = self.repository.head()?.peel_to_tree()?;
+
+        let staged_files = HashSet::from_iter(self.repository
+            .diff_tree_to_index(Some(&head_tree), None, None)?
+            .deltas()
+            .flat_map(|delta| vec![
+                delta.old_file().path(),
+                delta.new_file().path(),
+            ])
+            .filter_map(std::convert::identity)
+            .map(Path::to_path_buf));
+
+        let unstaged_files = HashSet::from_iter(self.repository
+            .diff_index_to_workdir(None, None)?
+            .deltas()
+            .flat_map(|delta| vec![
+                delta.old_file().path(),
+                delta.new_file().path(),
+            ])
+            .filter_map(std::convert::identity)
+            .map(Path::to_path_buf));
+
+        fn intersect<P: Eq + Hash>(one: HashSet<P>, two: &HashSet<P>) -> HashSet<P> {
+            one.into_iter().filter(|p| two.contains(p)).collect()
+        }
+
+        Ok(intersect(staged_files, &unstaged_files))
+    }
+
+    fn get_deleted_files(&self) -> Result<Vec<PathBuf>> {
+        let deleted_files = self.repository
+            .diff_index_to_workdir(None, None)?
+            .deltas()
+            .filter(|delta| delta.status() == Delta::Deleted)
+            .filter_map(|delta| delta.old_file().path())
+            .map(Path::to_path_buf)
+            .collect_vec();
+
+        Ok(deleted_files)
     }
 
     fn save_snapshot_stash(&mut self) -> Result<Option<Oid>> {
@@ -103,6 +154,15 @@ impl GitRepository {
             Err(error) if error.kind() == NotFound => Ok(None),
             Err(error) => Err(anyhow!(error)),
         }
+    }
+
+    fn delete_files<P: AsRef<Path>>(files: &Vec<P>) -> Result<()> {
+        for file in files.iter() {
+            fs::remove_file(file)
+                .with_context(|| format!("Encountered error when deleting {}.", file.as_ref().display()))?;
+        }
+
+        Ok(())
     }
 }
 
