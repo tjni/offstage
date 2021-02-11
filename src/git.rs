@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use git2::{
     Delta,
+    Diff,
+    DiffOptions,
     ErrorCode,
     Oid,
     Repository,
@@ -28,12 +30,22 @@ impl GitWorkflow {
         let repository = Repository::open_from_env()
             .with_context(|| "Encountered an error when opening the Git repository.")?;
 
-        Ok(Self { repository, })
+        Ok(Self { repository })
     }
 
     pub fn save_snapshot(&mut self) -> Result<Snapshot> {
         let mut inner = || -> Result<Snapshot> {
             let partially_staged_files = self.get_partially_staged_files()?;
+
+            let mut diff_options = DiffOptions::new();
+
+            diff_options.show_binary(true);
+            for file in partially_staged_files.iter() {
+                diff_options.pathspec(file);
+            }
+
+            let unstaged_diff = self.repository
+                .diff_index_to_workdir(None, Some(&mut diff_options))?;
 
             let deleted_files = self.get_deleted_files()?;
 
@@ -46,7 +58,7 @@ impl GitWorkflow {
             // deleted files. We need to clear them before creating our snapshot.
             Self::delete_files(&deleted_files)?;
 
-            Ok(Snapshot { backup_stash })
+            Ok(Snapshot { backup_stash, unstaged_diff })
         };
 
         inner().with_context(|| "Encountered an error when saving a snapshot.")
@@ -116,7 +128,7 @@ impl GitWorkflow {
             .map(Path::to_path_buf));
 
         let unstaged_files = HashSet::from_iter(self.repository
-            .diff_index_to_workdir(None, None)?
+            .diff_index_to_workdir(None, Some(DiffOptions::default().show_binary(true)))?
             .deltas()
             .flat_map(|delta| vec![
                 delta.old_file().path(),
@@ -228,9 +240,9 @@ impl GitWorkflow {
     }
 }
 
-#[derive(Debug)]
 pub struct Snapshot {
     backup_stash: Option<Stash>,
+    unstaged_diff: Diff,
 }
 
 #[derive(Debug)]
