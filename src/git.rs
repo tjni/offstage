@@ -24,7 +24,7 @@ pub struct GitWorkflow {
     repository: Repository,
 }
 
-impl GitWorkflow {
+impl<'a> GitWorkflow {
 
     pub fn open() -> Result<Self> {
         let repository = Repository::open_from_env()
@@ -33,9 +33,9 @@ impl GitWorkflow {
         Ok(Self { repository })
     }
 
-    pub fn save_snapshot(&mut self) -> Result<Snapshot> {
-        let mut inner = || -> Result<Snapshot> {
-            let partially_staged_files = self.get_partially_staged_files()?;
+    pub fn save_snapshot(&'a mut self) -> Result<Snapshot<'a>> {
+        fn inner<'a>(this: &'a mut GitWorkflow) -> Result<Snapshot<'a>> {
+            let partially_staged_files = this.get_partially_staged_files()?;
 
             let mut diff_options = DiffOptions::new();
 
@@ -44,24 +44,25 @@ impl GitWorkflow {
                 diff_options.pathspec(file);
             }
 
-            let unstaged_diff = self.repository
-                .diff_index_to_workdir(None, Some(&mut diff_options))?;
+            // Mutable borrow before immutable borrow later
+            let backup_stash = this.save_snapshot_stash()?;
 
-            let deleted_files = self.get_deleted_files()?;
+            let repo = &this.repository;
+            let unstaged_diff = repo.diff_index_to_workdir(None, Some(&mut diff_options))?;
+
+            let deleted_files = this.get_deleted_files()?;
 
             println!("Partially staged {:?}", partially_staged_files);
             // println!("Deleted {:?}", deleted_files);
 
-            let backup_stash = self.save_snapshot_stash()?;
-
             // Because `git stash` restores the HEAD commit, it brings back uncommitted
             // deleted files. We need to clear them before creating our snapshot.
-            Self::delete_files(&deleted_files)?;
+            GitWorkflow::delete_files(&deleted_files)?;
 
             Ok(Snapshot { backup_stash, unstaged_diff })
         };
 
-        inner().with_context(|| "Encountered an error when saving a snapshot.")
+        inner(self).with_context(|| "Encountered an error when saving a snapshot.")
     }
 
     pub fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<()> {
@@ -69,7 +70,7 @@ impl GitWorkflow {
             self.hard_reset()?;
 
             if let Some(backup_stash) = snapshot.backup_stash {
-                let stash_index = self.get_stash_index_from_id(&backup_stash.stash_id)?.ok_or_else(|| 
+                let stash_index = self.get_stash_index_from_id(&backup_stash.stash_id)?.ok_or_else(||
                     anyhow!("Could not find a backup stash with id {}.", &backup_stash.stash_id))?;
 
                 self.repository.stash_apply(stash_index,
@@ -95,7 +96,7 @@ impl GitWorkflow {
         // It would be much better if libgit2 accepted a stash Oid
         // instead of an index from the stash list.
         let ref_stash_index = RefCell::new(None);
-        
+
         self.repository.stash_foreach(|index, _, oid| {
             if oid == stash_id {
                 *ref_stash_index.borrow_mut() = Some(index);
@@ -240,9 +241,9 @@ impl GitWorkflow {
     }
 }
 
-pub struct Snapshot {
+pub struct Snapshot<'a> {
     backup_stash: Option<Stash>,
-    unstaged_diff: Diff,
+    unstaged_diff: Diff<'a>,
 }
 
 #[derive(Debug)]
