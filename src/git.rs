@@ -199,6 +199,7 @@ impl GitWorkflow {
 
         let mut checkout_options = CheckoutBuilder::new();
         checkout_options.force();
+        checkout_options.update_index(false);
         for file in partially_staged_files.iter() {
             checkout_options.path(file);
         }
