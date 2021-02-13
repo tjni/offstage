@@ -94,9 +94,9 @@ impl GitWorkflow {
     }
 
     fn stage_modifications(&mut self, snapshot: &Snapshot) -> Result<()> {
-        self.repository
-            .index()?
-            .add_all(&snapshot.staged_files, IndexAddOption::DEFAULT, None)?;
+        let mut index = self.repository.index()?;
+        index.add_all(&snapshot.staged_files, IndexAddOption::DEFAULT | IndexAddOption::DISABLE_PATHSPEC_MATCH, None)?;
+        index.write()?;
         Ok(())
     }
 
