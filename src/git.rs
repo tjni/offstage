@@ -27,16 +27,15 @@ impl GitWorkflow {
     pub fn save_snapshot(&mut self) -> Result<Snapshot> {
         let mut inner = || -> Result<Snapshot> {
             let deleted_files = self.get_deleted_files()?;
-            let partially_staged_files = self.get_partially_staged_files()?;
             let staged_files = self.get_staged_files()?;
-            let unstaged_diff = self.save_unstaged_diff(&partially_staged_files)?;
+            let unstaged_diff = self.save_unstaged_diff()?;
             let backup_stash = self.save_snapshot_stash()?;
 
             // Because `git stash` restores the HEAD commit, it brings back uncommitted
             // deleted files. We need to clear them before creating our snapshot.
             GitWorkflow::delete_files(&deleted_files)?;
 
-            self.hide_partially_staged_changes(&partially_staged_files)?;
+            self.hide_partially_staged_changes()?;
 
             Ok(Snapshot {
                 backup_stash,
@@ -163,10 +162,9 @@ impl GitWorkflow {
         Ok(())
     }
 
-    fn save_unstaged_diff(
-        &self,
-        partially_staged_files: &HashSet<PathBuf>,
-    ) -> Result<Option<Vec<u8>>> {
+    fn save_unstaged_diff(&self) -> Result<Option<Vec<u8>>> {
+        let partially_staged_files = self.get_partially_staged_files(true)?;
+
         if partially_staged_files.is_empty() {
             return Ok(None);
         }
@@ -196,10 +194,9 @@ impl GitWorkflow {
         Ok(Some(unstaged_diff_buffer))
     }
 
-    fn hide_partially_staged_changes(
-        &self,
-        partially_staged_files: &HashSet<PathBuf>,
-    ) -> Result<()> {
+    fn hide_partially_staged_changes(&self) -> Result<()> {
+        let partially_staged_files = self.get_partially_staged_files(false)?;
+
         let mut checkout_options = CheckoutBuilder::new();
         checkout_options.force();
         for file in partially_staged_files.iter() {
@@ -232,14 +229,20 @@ impl GitWorkflow {
         Ok(staged_files)
     }
 
-    fn get_partially_staged_files(&self) -> Result<HashSet<PathBuf>> {
+    fn get_partially_staged_files(&self, include_from_files: bool) -> Result<HashSet<PathBuf>> {
         let staged_files = HashSet::from_iter(self.get_staged_files()?);
 
         let unstaged_files = HashSet::from_iter(
             self.repository
                 .diff_index_to_workdir(None, Some(DiffOptions::default().show_binary(true)))?
                 .deltas()
-                .flat_map(|delta| vec![delta.old_file().path(), delta.new_file().path()])
+                .flat_map(|delta| {
+                    if include_from_files {
+                        vec![delta.old_file().path(), delta.new_file().path()]
+                    } else {
+                        vec![delta.new_file().path()]
+                    }
+                })
                 .filter_map(std::convert::identity)
                 .map(Path::to_path_buf),
         );
