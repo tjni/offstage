@@ -1,5 +1,7 @@
 use anyhow::Result;
 use git::{GitWorkflow, Snapshot};
+use itertools::Itertools;
+use std::iter::Iterator;
 use std::path::PathBuf;
 use std::process::Command;
 use structopt::StructOpt;
@@ -29,7 +31,7 @@ fn main() -> Result<()> {
 
     let result = run_stage_command(&args, &mut workflow, &snapshot);
 
-    if let Some(e) = result.err() {
+    if let Some(_) = result.err() {
         workflow.restore_snapshot(snapshot)
     } else {
         Ok(())
@@ -37,18 +39,24 @@ fn main() -> Result<()> {
 }
 
 fn run_stage_command(args: &Args, workflow: &mut GitWorkflow, snapshot: &Snapshot) -> Result<()> {
-    let status = Command::new(&args.shell)
-        .arg("-c")
-        .arg(join_command_pieces(&args))
-        .status()?;
+    let file_paths = snapshot
+        .staged_files
+        .iter()
+        .filter_map(|path| path.to_str())
+        .collect_vec();
+
+    let command = args
+        .command
+        .iter()
+        .map(|str| str.as_str())
+        .chain(file_paths)
+        .join(" ");
+
+    let status = Command::new(&args.shell).arg("-c").arg(command).status()?;
 
     if status.code().unwrap_or(1) == 0 {
         workflow.apply_modifications(snapshot)
     } else {
         Ok(())
     }
-}
-
-fn join_command_pieces(args: &Args) -> String {
-    args.command.join(" ")
 }

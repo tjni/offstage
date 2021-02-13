@@ -1,8 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use git2::{
-    ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode, IndexAddOption, Oid,
-    Repository, ResetType, Signature, StashApplyOptions, StashFlags,
-};
+use git2::{ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode, IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions, build::CheckoutBuilder};
 use itertools::Itertools;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -27,13 +24,16 @@ impl GitWorkflow {
     pub fn save_snapshot(&mut self) -> Result<Snapshot> {
         let mut inner = || -> Result<Snapshot> {
             let deleted_files = self.get_deleted_files()?;
+            let partially_staged_files = self.get_partially_staged_files()?;
             let staged_files = self.get_staged_files()?;
-            let unstaged_diff = self.save_unstaged_diff()?;
+            let unstaged_diff = self.save_unstaged_diff(&partially_staged_files)?;
             let backup_stash = self.save_snapshot_stash()?;
 
             // Because `git stash` restores the HEAD commit, it brings back uncommitted
             // deleted files. We need to clear them before creating our snapshot.
             GitWorkflow::delete_files(&deleted_files)?;
+
+            self.hide_partially_staged_changes(&partially_staged_files)?;
 
             Ok(Snapshot {
                 backup_stash,
@@ -78,21 +78,9 @@ impl GitWorkflow {
             self.hard_reset()?;
 
             if let Some(backup_stash) = snapshot.backup_stash {
-                let stash_index = self
-                    .get_stash_index_from_id(&backup_stash.stash_id)?
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "Could not find a backup stash with id {}.",
-                            &backup_stash.stash_id
-                        )
-                    })?;
-
-                self.repository.stash_apply(
-                    stash_index,
-                    Some(StashApplyOptions::default().reinstantiate_index()),
-                )?;
-
+                self.apply_stash(&backup_stash.stash_id)?;
                 self.restore_merge_status(&backup_stash.merge_status)?;
+                self.drop_stash(backup_stash.stash_id)?;
             }
 
             Ok(())
@@ -132,9 +120,30 @@ impl GitWorkflow {
         Ok(stash_index)
     }
 
-    fn save_unstaged_diff(&self) -> Result<Option<Vec<u8>>> {
-        let partially_staged_files = self.get_partially_staged_files()?;
+    fn apply_stash(&mut self, stash_id: &Oid) -> Result<()> {
+        let stash_index = self
+            .get_stash_index_from_id(stash_id)?
+            .ok_or_else(|| anyhow!("Could not find a backup stash with id {}.", stash_id))?;
 
+        self.repository.stash_apply(
+            stash_index,
+            Some(StashApplyOptions::default().reinstantiate_index()),
+        )?;
+
+        Ok(())
+    }
+
+    fn drop_stash(&mut self, stash_id: Oid) -> Result<()> {
+        let stash_index = self
+            .get_stash_index_from_id(&stash_id)?
+            .ok_or_else(|| anyhow!("Could not find a backup stash with id {}.", stash_id))?;
+
+        self.repository.stash_drop(stash_index)?;
+
+        Ok(())
+    }
+
+    fn save_unstaged_diff(&self, partially_staged_files: &HashSet<PathBuf>) -> Result<Option<Vec<u8>>> {
         if partially_staged_files.is_empty() {
             return Ok(None);
         }
@@ -163,6 +172,18 @@ impl GitWorkflow {
         Ok(Some(unstaged_diff_buffer))
     }
 
+    fn hide_partially_staged_changes(&self, partially_staged_files: &HashSet<PathBuf>) -> Result<()> {
+        let mut checkout_options = CheckoutBuilder::new();
+        checkout_options.force();
+        for file in partially_staged_files.iter() {
+            checkout_options.path(file);
+        }
+
+        self.repository.checkout_head(Some(&mut checkout_options))?;
+
+        Ok(())
+    }
+
     fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
         let head_tree = self.repository.head()?.peel_to_tree()?;
 
@@ -170,7 +191,13 @@ impl GitWorkflow {
             .repository
             .diff_tree_to_index(Some(&head_tree), None, None)?
             .deltas()
-            .flat_map(|delta| vec![delta.old_file().path(), delta.new_file().path()])
+            .flat_map(|delta| {
+                if delta.old_file().path() == delta.new_file().path() {
+                    vec![delta.old_file().path()]
+                } else {
+                    vec![delta.old_file().path(), delta.new_file().path()]
+                }
+            })
             .filter_map(std::convert::identity)
             .map(Path::to_path_buf)
             .collect();
@@ -218,11 +245,17 @@ impl GitWorkflow {
         let dummy_signature = Signature::now("Offstage Dummy User", "dummy@example.com")
             .with_context(|| "Encountered an error when creating dummy authorship information.")?;
 
-        let stash_result = self.repository.stash_save(
-            &dummy_signature,
-            "offstage backup",
-            Some(StashFlags::KEEP_INDEX),
-        );
+        let stash_result = self
+            .repository
+            .stash_save(&dummy_signature, "offstage backup", None);
+
+        // Until save_snapshot_stash can use a non-destructive stash (which maps
+        // to command `git stash create` and `git stash store`), which needs to
+        // be supported by libgit2, we need to apply the stash to bring back files.
+        if let Ok(stash_id) = stash_result {
+            self.apply_stash(&stash_id)?;
+            self.restore_merge_status(&merge_status)?;
+        }
 
         match stash_result {
             Ok(stash_id) => Ok(Some(Stash {
@@ -339,8 +372,8 @@ impl GitWorkflow {
 }
 
 pub struct Snapshot {
+    pub staged_files: Vec<PathBuf>,
     backup_stash: Option<Stash>,
-    staged_files: Vec<PathBuf>,
     unstaged_diff: Option<Vec<u8>>,
 }
 
