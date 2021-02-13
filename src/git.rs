@@ -1,5 +1,8 @@
 use anyhow::{anyhow, Context, Result};
-use git2::{ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode, IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions, build::CheckoutBuilder};
+use git2::{
+    build::CheckoutBuilder, ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode,
+    IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions,
+};
 use itertools::Itertools;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -80,7 +83,12 @@ impl GitWorkflow {
             if let Some(backup_stash) = snapshot.backup_stash {
                 let stash_index = self
                     .get_stash_index_from_id(&backup_stash.stash_id)?
-                    .ok_or_else(|| anyhow!("Could not find a backup stash with id {}.", &backup_stash.stash_id))?;
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "Could not find a backup stash with id {}.",
+                            &backup_stash.stash_id
+                        )
+                    })?;
 
                 self.repository.stash_drop(stash_index)?;
             }
@@ -88,14 +96,19 @@ impl GitWorkflow {
             Ok(())
         };
 
-        inner().with_context(||
+        inner().with_context(|| {
             "Encountered an error when cleaning snapshot. You might find a stash entry \
-             in the stash list.")
+             in the stash list."
+        })
     }
 
     fn stage_modifications(&mut self, snapshot: &Snapshot) -> Result<()> {
         let mut index = self.repository.index()?;
-        index.add_all(&snapshot.staged_files, IndexAddOption::DEFAULT | IndexAddOption::DISABLE_PATHSPEC_MATCH, None)?;
+        index.add_all(
+            &snapshot.staged_files,
+            IndexAddOption::DEFAULT | IndexAddOption::DISABLE_PATHSPEC_MATCH,
+            None,
+        )?;
         index.write()?;
         Ok(())
     }
@@ -150,7 +163,10 @@ impl GitWorkflow {
         Ok(())
     }
 
-    fn save_unstaged_diff(&self, partially_staged_files: &HashSet<PathBuf>) -> Result<Option<Vec<u8>>> {
+    fn save_unstaged_diff(
+        &self,
+        partially_staged_files: &HashSet<PathBuf>,
+    ) -> Result<Option<Vec<u8>>> {
         if partially_staged_files.is_empty() {
             return Ok(None);
         }
@@ -180,7 +196,10 @@ impl GitWorkflow {
         Ok(Some(unstaged_diff_buffer))
     }
 
-    fn hide_partially_staged_changes(&self, partially_staged_files: &HashSet<PathBuf>) -> Result<()> {
+    fn hide_partially_staged_changes(
+        &self,
+        partially_staged_files: &HashSet<PathBuf>,
+    ) -> Result<()> {
         let mut checkout_options = CheckoutBuilder::new();
         checkout_options.force();
         for file in partially_staged_files.iter() {
