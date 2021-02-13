@@ -204,7 +204,7 @@ impl GitWorkflow {
             checkout_options.path(file);
         }
 
-        self.repository.checkout_head(Some(&mut checkout_options))?;
+        self.repository.checkout_index(None, Some(&mut checkout_options))?;
 
         Ok(())
     }
