@@ -102,7 +102,7 @@ impl GitWorkflow {
     }
 
     fn hard_reset(&self) -> Result<()> {
-        let head = self.repository.head()?.peel_to_tree()?;
+        let head = self.repository.head()?.peel_to_commit()?;
 
         self.repository
             .reset(head.as_object(), ResetType::Hard, None)

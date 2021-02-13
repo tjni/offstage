@@ -29,7 +29,7 @@ fn main() -> Result<()> {
 
     let result = run_stage_command(&args, &mut workflow, &snapshot);
 
-    if let Some(_) = result.err() {
+    if let Some(e) = result.err() {
         workflow.restore_snapshot(snapshot)
     } else {
         Ok(())
