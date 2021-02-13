@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use git2::{
-    Buf, Delta, Diff, DiffFormat, DiffOptions, ErrorCode, Oid, Repository, ResetType, Signature,
-    StashApplyOptions, StashFlags,
+    ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode, IndexAddOption, Oid,
+    Repository, ResetType, Signature, StashApplyOptions, StashFlags,
 };
 use itertools::Itertools;
 use std::cell::RefCell;
@@ -27,6 +27,7 @@ impl GitWorkflow {
     pub fn save_snapshot(&mut self) -> Result<Snapshot> {
         let mut inner = || -> Result<Snapshot> {
             let deleted_files = self.get_deleted_files()?;
+            let staged_files = self.get_staged_files()?;
             let unstaged_diff = self.save_unstaged_diff()?;
             let backup_stash = self.save_snapshot_stash()?;
 
@@ -36,11 +37,40 @@ impl GitWorkflow {
 
             Ok(Snapshot {
                 backup_stash,
+                staged_files,
                 unstaged_diff,
             })
         };
 
         inner().with_context(|| "Encountered an error when saving a snapshot.")
+    }
+
+    pub fn apply_modifications(&mut self, snapshot: &Snapshot) -> Result<()> {
+        self.stage_modifications(snapshot)?;
+
+        if self.get_staged_files()?.is_empty() {
+            return Err(anyhow!("Prevented an empty git commit."));
+        }
+
+        if let Some(raw_diff) = &snapshot.unstaged_diff {
+            let unstaged_diff = Diff::from_buffer(raw_diff)?;
+            self.merge_modifications(unstaged_diff)?;
+        }
+
+        Ok(())
+    }
+
+    fn stage_modifications(&mut self, snapshot: &Snapshot) -> Result<()> {
+        self.repository
+            .index()?
+            .add_all(&snapshot.staged_files, IndexAddOption::DEFAULT, None)?;
+        Ok(())
+    }
+
+    fn merge_modifications(&self, unstaged_diff: Diff) -> Result<()> {
+        self.repository
+            .apply(&unstaged_diff, ApplyLocation::WorkDir, None)
+            .with_context(|| "Unstaged changes could not be restored due to a merge conflict.")
     }
 
     pub fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<()> {
@@ -102,8 +132,12 @@ impl GitWorkflow {
         Ok(stash_index)
     }
 
-    fn save_unstaged_diff(&self) -> Result<Vec<u8>> {
+    fn save_unstaged_diff(&self) -> Result<Option<Vec<u8>>> {
         let partially_staged_files = self.get_partially_staged_files()?;
+
+        if partially_staged_files.is_empty() {
+            return Ok(None);
+        }
 
         let mut diff_options = DiffOptions::new();
         diff_options.show_binary(true);
@@ -126,20 +160,26 @@ impl GitWorkflow {
             true
         })?;
 
-        Ok(unstaged_diff_buffer)
+        Ok(Some(unstaged_diff_buffer))
+    }
+
+    fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
+        let head_tree = self.repository.head()?.peel_to_tree()?;
+
+        let staged_files = self
+            .repository
+            .diff_tree_to_index(Some(&head_tree), None, None)?
+            .deltas()
+            .flat_map(|delta| vec![delta.old_file().path(), delta.new_file().path()])
+            .filter_map(std::convert::identity)
+            .map(Path::to_path_buf)
+            .collect();
+
+        Ok(staged_files)
     }
 
     fn get_partially_staged_files(&self) -> Result<HashSet<PathBuf>> {
-        let head_tree = self.repository.head()?.peel_to_tree()?;
-
-        let staged_files = HashSet::from_iter(
-            self.repository
-                .diff_tree_to_index(Some(&head_tree), None, None)?
-                .deltas()
-                .flat_map(|delta| vec![delta.old_file().path(), delta.new_file().path()])
-                .filter_map(std::convert::identity)
-                .map(Path::to_path_buf),
-        );
+        let staged_files = HashSet::from_iter(self.get_staged_files()?);
 
         let unstaged_files = HashSet::from_iter(
             self.repository
@@ -300,7 +340,8 @@ impl GitWorkflow {
 
 pub struct Snapshot {
     backup_stash: Option<Stash>,
-    unstaged_diff: Vec<u8>,
+    staged_files: Vec<PathBuf>,
+    unstaged_diff: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
