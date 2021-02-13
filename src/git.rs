@@ -161,11 +161,12 @@ impl GitWorkflow {
         let mut unstaged_diff_buffer = vec![];
         unstaged_diff.print(DiffFormat::Patch, |_, _, line| {
             let origin = line.origin();
+
             if origin == '+' || origin == '-' || origin == ' ' {
                 unstaged_diff_buffer.push(origin as u8);
-            } else {
-                unstaged_diff_buffer.append(&mut line.content().to_vec());
             }
+
+            unstaged_diff_buffer.append(&mut line.content().to_vec());
             true
         })?;
 
