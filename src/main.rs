@@ -1,9 +1,9 @@
 use anyhow::Result;
+use git::GitWorkflow;
 use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use structopt::StructOpt;
-use git::GitWorkflow;
 
 mod git;
 
