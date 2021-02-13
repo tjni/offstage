@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use git2::{
-    build::CheckoutBuilder, ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode,
+    build::CheckoutBuilder, opts, ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode,
     IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions,
 };
 use itertools::Itertools;
@@ -18,6 +18,8 @@ pub struct GitWorkflow {
 
 impl GitWorkflow {
     pub fn open() -> Result<Self> {
+        opts::strict_hash_verification(false);
+
         let repository = Repository::open_from_env()
             .with_context(|| "Encountered an error when opening the Git repository.")?;
 
