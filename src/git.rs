@@ -60,6 +60,39 @@ impl GitWorkflow {
         Ok(())
     }
 
+    pub fn restore_snapshot(&mut self, snapshot: &Snapshot) -> Result<()> {
+        let mut inner = || -> Result<()> {
+            self.hard_reset()?;
+
+            if let Some(backup_stash) = &snapshot.backup_stash {
+                self.apply_stash(&backup_stash.stash_id)?;
+                self.restore_merge_status(&backup_stash.merge_status)?;
+            }
+
+            Ok(())
+        };
+
+        inner().with_context(|| "Encountered an error when restoring snapshot after another error.")
+    }
+
+    pub fn clean_snapshot(&mut self, snapshot: Snapshot) -> Result<()> {
+        let inner = || -> Result<()> {
+            if let Some(backup_stash) = snapshot.backup_stash {
+                let stash_index = self
+                    .get_stash_index_from_id(&backup_stash.stash_id)?
+                    .ok_or_else(|| anyhow!("Could not find a backup stash with id {}.", &backup_stash.stash_id))?;
+
+                self.repository.stash_drop(stash_index)?;
+            }
+
+            Ok(())
+        };
+
+        inner().with_context(||
+            "Encountered an error when cleaning snapshot. You might find a stash entry \
+             in the stash list.")
+    }
+
     fn stage_modifications(&mut self, snapshot: &Snapshot) -> Result<()> {
         self.repository
             .index()?
@@ -71,22 +104,6 @@ impl GitWorkflow {
         self.repository
             .apply(&unstaged_diff, ApplyLocation::WorkDir, None)
             .with_context(|| "Unstaged changes could not be restored due to a merge conflict.")
-    }
-
-    pub fn restore_snapshot(&mut self, snapshot: Snapshot) -> Result<()> {
-        let inner = || -> Result<()> {
-            self.hard_reset()?;
-
-            if let Some(backup_stash) = snapshot.backup_stash {
-                self.apply_stash(&backup_stash.stash_id)?;
-                self.restore_merge_status(&backup_stash.merge_status)?;
-                self.drop_stash(backup_stash.stash_id)?;
-            }
-
-            Ok(())
-        };
-
-        inner().with_context(|| "Encountered an error when restoring snapshot after another error.")
     }
 
     fn hard_reset(&self) -> Result<()> {
@@ -129,16 +146,6 @@ impl GitWorkflow {
             stash_index,
             Some(StashApplyOptions::default().reinstantiate_index()),
         )?;
-
-        Ok(())
-    }
-
-    fn drop_stash(&mut self, stash_id: Oid) -> Result<()> {
-        let stash_index = self
-            .get_stash_index_from_id(&stash_id)?
-            .ok_or_else(|| anyhow!("Could not find a backup stash with id {}.", stash_id))?;
-
-        self.repository.stash_drop(stash_index)?;
 
         Ok(())
     }

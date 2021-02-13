@@ -32,10 +32,12 @@ fn main() -> Result<()> {
     let result = run_stage_command(&args, &mut workflow, &snapshot);
 
     if let Some(_) = result.err() {
-        workflow.restore_snapshot(snapshot)
-    } else {
-        Ok(())
+        workflow.restore_snapshot(&snapshot)?;
     }
+
+    workflow.clean_snapshot(snapshot)?;
+
+    Ok(())
 }
 
 fn run_stage_command(args: &Args, workflow: &mut GitWorkflow, snapshot: &Snapshot) -> Result<()> {
