@@ -40,10 +40,9 @@ impl GitRepository {
         Ok(Self { repository })
     }
 
-    pub fn save_snapshot(&mut self) -> Result<Snapshot> {
-        let mut inner = || -> Result<Snapshot> {
+    pub fn save_snapshot(&mut self, staged_files: Vec<PathBuf>) -> Result<Snapshot> {
+        let inner = || -> Result<Snapshot> {
             let deleted_files = self.get_deleted_files()?;
-            let staged_files = self.get_staged_files()?;
             let unstaged_diff = self.save_unstaged_diff()?;
             let backup_stash = self.save_snapshot_stash()?;
 
@@ -226,7 +225,7 @@ impl GitRepository {
         Ok(())
     }
 
-    fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
+    pub fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
         let head_tree = self.repository.head()?.peel_to_tree()?;
 
         let staged_files = self
