@@ -29,11 +29,11 @@ struct Workflow {
 }
 
 impl Workflow {
-    fn prepare() -> Result<Workflow> {
+    fn prepare() -> Result<Self> {
         let mut repository = GitRepository::open()?;
         let snapshot = repository.save_snapshot()?;
 
-        Ok(Workflow {
+        Ok(Self {
             repository,
             snapshot,
         })
