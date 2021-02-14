@@ -7,18 +7,18 @@
 Run the CLI during development:
 
 ```sh
-$ cargo run <arguments>
+cargo run <arguments>
 ```
 
 Run tests:
 
 ```sh
-$ cargo test
+cargo test
 ```
 
 Create a release build:
 
 ```sh
-$ cargo build --release
-$ ls -alh target/release/offstage
+cargo build --release
+ls -alh target/release/offstage
 ```
