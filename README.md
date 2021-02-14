@@ -20,5 +20,5 @@ Create a release build:
 
 ```sh
 $ cargo build --release
-$ ls -alh /target/release/offstage
+$ ls -alh target/release/offstage
 ```
