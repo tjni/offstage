@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use git2::{
-    build::CheckoutBuilder, opts, ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode,
+    build::CheckoutBuilder, ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode,
     IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions, Time
 };
 use itertools::Itertools;
@@ -12,13 +12,27 @@ use std::io::ErrorKind::NotFound;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
-pub struct GitWorkflow {
+/// An abstraction over a Git repository providing complex behavior needed for
+/// applying changes to staged files safely.
+pub struct GitRepository {
     repository: Repository,
 }
 
-impl GitWorkflow {
+impl GitRepository {
+    /// Attempts to open an already-existing repository.
+    ///
+    /// If the $GIT_DIR environment variable is set, this uses it to locate the
+    /// Git repository. Otherwise, this searches up the directory tree from the
+    /// current directory to find the repository.
     pub fn open() -> Result<Self> {
-        opts::strict_hash_verification(false);
+        // When strict hash verification is disabled, it means libgit2 will not
+        // compute the "object id" of Git objects (which is a SHA1 hash) after
+        // reading them to verify they match the object ids being used to look
+        // them up. This improves performance, and I don't have in front of me
+        // a concrete example where this is necessary to prevent data loss. If
+        // one becomes obvious, then we should make this configurable.
+        //
+        git2::opts::strict_hash_verification(false);
 
         let repository = Repository::open_from_env()
             .with_context(|| "Encountered an error when opening the Git repository.")?;
@@ -35,7 +49,7 @@ impl GitWorkflow {
 
             // Because `git stash` restores the HEAD commit, it brings back uncommitted
             // deleted files. We need to clear them before creating our snapshot.
-            GitWorkflow::delete_files(&deleted_files)?;
+            GitRepository::delete_files(&deleted_files)?;
 
             self.hide_partially_staged_changes()?;
 
