@@ -226,11 +226,15 @@ impl GitRepository {
     }
 
     pub fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
-        let head_tree = self.repository.head()?.peel_to_tree()?;
+        let head_tree = match self.repository.head() {
+            Ok(head) => Ok(Some(head.peel_to_tree()?)),
+            Err(error) if error.code() == ErrorCode::UnbornBranch => Ok(None),
+            Err(error) => Err(error),
+        }?;
 
         let staged_files = self
             .repository
-            .diff_tree_to_index(Some(&head_tree), None, None)?
+            .diff_tree_to_index(head_tree.as_ref(), None, None)?
             .deltas()
             .flat_map(|delta| {
                 if delta.old_file().path() == delta.new_file().path() {
@@ -285,6 +289,10 @@ impl GitRepository {
     }
 
     fn save_snapshot_stash(&mut self) -> Result<Option<Stash>> {
+        if self.repository.is_empty()? {
+            return Ok(None);
+        }
+
         fn create_signature<'a>() -> Result<Signature<'a>> {
             // Because this time is only used to create a dummy signature to
             // make the stash_save method happy, we don't need to use a real
@@ -430,6 +438,7 @@ impl GitRepository {
     }
 }
 
+#[derive(Debug)]
 pub struct Snapshot {
     pub staged_files: Vec<PathBuf>,
     backup_stash: Option<Stash>,
