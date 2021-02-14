@@ -57,7 +57,10 @@ fn create_initial_commit(repository: &Repository) -> Result<()> {
         .ok_or_else(|| anyhow!("Could not find the working directory."))?;
 
     let relative_path = Path::new("README");
-    writeln!(File::create(&workdir.join(relative_path))?, "An example README.")?;
+    writeln!(
+        File::create(&workdir.join(relative_path))?,
+        "An example README."
+    )?;
 
     let mut index = repository.index()?;
     index.add_path(relative_path)?;
