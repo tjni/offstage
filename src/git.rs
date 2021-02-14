@@ -26,7 +26,7 @@ impl GitRepository {
     /// current directory to find the repository.
     pub fn open() -> Result<Self> {
         // When strict hash verification is disabled, it means libgit2 will not
-        // compute the "object id" of Git objects (which is a SHA1 hash) after
+        // compute the "object id" of Git objects (which is a SHA-1 hash) after
         // reading them to verify they match the object ids being used to look
         // them up. This improves performance, and I don't have in front of me
         // a concrete example where this is necessary to prevent data loss. If
