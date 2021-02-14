@@ -1,8 +1,8 @@
+use super::git::{GitRepository, Snapshot};
 use anyhow::Result;
 use itertools::Itertools;
 use std::path::Path;
 use std::process::Command;
-use super::git::{GitRepository, Snapshot};
 
 /// Runs the core logic to back up the working directory, apply a command to the
 /// staged files, and handle errors.
@@ -33,18 +33,24 @@ impl Workflow {
         let mut repository = GitRepository::open()?;
         let snapshot = repository.save_snapshot()?;
 
-        Ok(Workflow { repository, snapshot, })
+        Ok(Workflow {
+            repository,
+            snapshot,
+        })
     }
 
     fn run<P: AsRef<Path>>(&mut self, shell: P, command: &Vec<String>) -> Result<()> {
-        let staged_files_iter = self.snapshot
+        let staged_files_iter = self
+            .snapshot
             .staged_files
             .iter()
             .filter_map(|path| path.to_str());
 
-        let command = command.iter()
+        let command = command
+            .iter()
             .map(String::as_str)
-            .chain(staged_files_iter).join(" ");
+            .chain(staged_files_iter)
+            .join(" ");
 
         let status = Command::new(shell.as_ref())
             .arg("-c")

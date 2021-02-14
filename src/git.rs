@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use git2::{
     build::CheckoutBuilder, ApplyLocation, Delta, Diff, DiffFormat, DiffOptions, ErrorCode,
-    IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions, Time
+    IndexAddOption, Oid, Repository, ResetType, Signature, StashApplyOptions, Time,
 };
 use itertools::Itertools;
 use std::cell::RefCell;
@@ -290,8 +290,11 @@ impl GitRepository {
         // the working directory so that we can restore it afterward.
         let merge_status = self.save_merge_status()?;
 
-        let dummy_signature = Signature::new("Offstage Dummy User", "dummy@example.com", &Time::new(0, 0))
-            .with_context(|| "Encountered an error when creating dummy authorship information.")?;
+        let dummy_signature =
+            Signature::new("Offstage Dummy User", "dummy@example.com", &Time::new(0, 0))
+                .with_context(|| {
+                    "Encountered an error when creating dummy authorship information."
+                })?;
 
         let stash_result = self
             .repository
