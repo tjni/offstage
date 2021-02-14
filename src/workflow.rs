@@ -57,7 +57,7 @@ impl Workflow {
             .arg(command)
             .status()?;
 
-        if status.code() == Some(0) {
+        if status.success() {
             self.repository.apply_modifications(&self.snapshot)
         } else {
             Ok(())
