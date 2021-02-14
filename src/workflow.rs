@@ -1,11 +1,8 @@
 use super::git::{GitRepository, Snapshot};
-use anyhow::{bail, Result};
+use anyhow::Result;
+use duct::cmd;
 use itertools::Itertools;
 use std::path::Path;
-use std::process::Command;
-
-#[cfg(unix)]
-use std::os::unix::prelude::ExitStatusExt;
 
 /// Runs the core logic to back up the working directory, apply a command to the
 /// staged files, and handle errors.
@@ -66,21 +63,7 @@ impl Workflow {
             .chain(staged_files_iter)
             .join(" ");
 
-        let status = Command::new(shell.as_ref())
-            .arg("-c")
-            .arg(command)
-            .status()?;
-
-        if !status.success() {
-            if let Some(error_code) = status.code() {
-                bail!("Command failed with status code {}.", error_code);
-            }
-
-            #[cfg(unix)]
-            if let Some(signal) = status.signal() {
-                bail!("Command was terminated by signal {}.", signal);
-            }
-        }
+        cmd!(shell.as_ref(), "-c", command).run()?;
 
         self.repository.apply_modifications(&self.snapshot)
     }

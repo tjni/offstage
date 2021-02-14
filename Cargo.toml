@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.38"
+duct = "0.13.5"
 git2 = { version = "0.13.17", features = ["zlib-ng-compat"] }
 itertools = "0.10.0"
 log = "0.4.14"
