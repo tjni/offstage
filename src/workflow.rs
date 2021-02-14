@@ -1,8 +1,11 @@
 use super::git::{GitRepository, Snapshot};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use itertools::Itertools;
 use std::path::Path;
 use std::process::Command;
+
+#[cfg(unix)]
+use std::os::unix::prelude::ExitStatusExt;
 
 /// Runs the core logic to back up the working directory, apply a command to the
 /// staged files, and handle errors.
@@ -16,11 +19,13 @@ pub fn run<P: AsRef<Path>>(shell: P, command: &Vec<String>) -> Result<()> {
     // TODO: We need to show a message when a commit was prevented because it
     // would be an empty commit.
 
-    if let Some(_) = result.err() {
+    if result.is_err() {
         workflow.restore()?;
     }
 
-    workflow.cleanup()
+    workflow.cleanup()?;
+
+    result
 }
 
 struct Workflow {
@@ -57,11 +62,18 @@ impl Workflow {
             .arg(command)
             .status()?;
 
-        if status.success() {
-            self.repository.apply_modifications(&self.snapshot)
-        } else {
-            Ok(())
+        if !status.success() {
+            if let Some(error_code) = status.code() {
+                bail!("Command failed with status code {}.", error_code);
+            }
+
+            #[cfg(unix)]
+            if let Some(signal) = status.signal() {
+                bail!("Command was terminated by signal {}.", signal);
+            }
         }
+
+        self.repository.apply_modifications(&self.snapshot)
     }
 
     fn restore(&mut self) -> Result<()> {
