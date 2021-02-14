@@ -286,23 +286,32 @@ impl GitRepository {
     }
 
     fn save_snapshot_stash(&mut self) -> Result<Option<Stash>> {
+        fn create_signature<'a>() -> Result<Signature<'a>> {
+            // Because this time is only used to create a dummy signature to
+            // make the stash_save method happy, we don't need to use a real
+            // time, which skips some calls to the kernel.
+            //
+            let time = Time::new(0, 0);
+
+            Signature::new("Dummy", "dummy@example.com", &time)
+                .with_context(|| "Encountered an error when creating dummy authorship information.")
+        }
+
         // Save state when in the middle of a merge prior to stashing changes in
         // the working directory so that we can restore it afterward.
+        //
         let merge_status = self.save_merge_status()?;
 
-        let dummy_signature =
-            Signature::new("Offstage Dummy User", "dummy@example.com", &Time::new(0, 0))
-                .with_context(|| {
-                    "Encountered an error when creating dummy authorship information."
-                })?;
+        let signature = create_signature()?;
 
         let stash_result = self
             .repository
-            .stash_save(&dummy_signature, "offstage backup", None);
+            .stash_save(&signature, "offstage backup", None);
 
         // Until save_snapshot_stash can use a non-destructive stash (which maps
         // to command `git stash create` and `git stash store`), which needs to
         // be supported by libgit2, we need to apply the stash to bring back files.
+        //
         if let Ok(stash_id) = stash_result {
             self.apply_stash(&stash_id)?;
             self.restore_merge_status(&merge_status)?;
