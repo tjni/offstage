@@ -3,6 +3,11 @@ name = "offstage"
 version = "0.1.0"
 authors = ["Theodore Ni <3806110+tjni@users.noreply.github.com>"]
 edition = "2018"
+description = "Runs commands against staged Git files."
+repository = "https://github.com/tjni/offstage/"
+license = "Apache-2.0"
+categories = ["command-line-utilities", "development-tools", "development-tools::testing"]
+keywords = ["git", "lint", "pre-commit", "stage"]
 
 [dependencies]
 anyhow = "1.0.38"
