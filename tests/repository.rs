@@ -15,7 +15,8 @@ impl TestRepository {
     }
 
     pub fn initial_commit(&mut self) -> Result<()> {
-        let workdir = self.repository
+        let workdir = self
+            .repository
             .workdir()
             .ok_or_else(|| anyhow!("Could not find the working directory."))?;
 

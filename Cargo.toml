@@ -13,11 +13,6 @@ log = "0.4.14"
 pretty_env_logger = "0.4.0"
 structopt = "0.3.21"
 
-[dev-dependencies]
-assert_cmd = "1.0.3"
-predicates = "1.0.2"
-tempfile = "3.2.0"
-
 [profile.release]
 lto = true
 codegen-units = 1
