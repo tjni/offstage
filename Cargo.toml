@@ -8,6 +8,7 @@ edition = "2018"
 anyhow = "1.0.38"
 duct = "0.13.5"
 git2 = { version = "0.13.17", features = ["zlib-ng-compat"] }
+globset = "0.4.6"
 itertools = "0.10.0"
 log = "0.4.14"
 pretty_env_logger = "0.4.0"

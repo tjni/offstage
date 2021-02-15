@@ -33,6 +33,7 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
+    -f, --filter <filter>    Glob pattern to filter staged files
     -s, --shell <shell>      Shell executable to use to run the command [env: SHELL=/usr/bin/fish]
 
 ARGS:

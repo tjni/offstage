@@ -6,8 +6,9 @@ mod git;
 mod workflow;
 
 #[derive(Debug, StructOpt)]
+#[structopt(setting = structopt::clap::AppSettings::TrailingVarArg)]
 struct Args {
-    /// File filter over staged files
+    /// Glob pattern to filter staged files
     #[structopt(long, short)]
     filter: Option<String>,
 
@@ -22,5 +23,5 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::from_args();
 
-    workflow::run(&args.shell, &args.command)
+    workflow::run(&args.shell, &args.command, &args.filter)
 }

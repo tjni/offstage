@@ -1,13 +1,14 @@
 use super::git::{GitRepository, Snapshot};
 use anyhow::Result;
 use duct::cmd;
+use globset::Glob;
 use itertools::Itertools;
 use std::path::Path;
 
 /// Runs the core logic to back up the working directory, apply a command to the
 /// staged files, and handle errors.
-pub fn run<P: AsRef<Path>>(shell: P, command: &Vec<String>) -> Result<()> {
-    if let Some(mut workflow) = Workflow::prepare()? {
+pub fn run<P: AsRef<Path>>(shell: P, command: &Vec<String>, filter: &Option<String>) -> Result<()> {
+    if let Some(mut workflow) = Workflow::prepare(filter)? {
         let result = workflow.run(shell, command);
 
         // TODO: We need to aggregate these errors and show all of them.
@@ -33,10 +34,17 @@ struct Workflow {
 }
 
 impl Workflow {
-    fn prepare() -> Result<Option<Self>> {
+    fn prepare(filter: &Option<String>) -> Result<Option<Self>> {
         let mut repository = GitRepository::open()?;
 
-        let staged_files = repository.get_staged_files()?;
+        let mut staged_files = repository.get_staged_files()?;
+
+        if let Some(filter) = filter {
+            let glob_matcher = Glob::new(filter)?.compile_matcher();
+            staged_files = staged_files.into_iter()
+                .filter(|path| glob_matcher.is_match(path))
+                .collect();
+        }
 
         if staged_files.is_empty() {
             return Ok(None);
