@@ -194,19 +194,36 @@ impl GitRepository {
             .repository
             .diff_index_to_workdir(None, Some(&mut diff_options))?;
 
-        let mut unstaged_diff_buffer = vec![];
-        unstaged_diff.print(DiffFormat::Patch, |_, _, line| {
-            let origin = line.origin();
+        // The Diff created by diff_index_to_workdir is owned by the repository.
+        // It means storing this diff separately isn't possible, and it is also
+        // difficult to store it along with the repository together in a struct,
+        // because that struct then wll have a self reference between its diff
+        // and its repository.
+        //
+        // I'm not comfortable enough with ownership to understand the correct
+        // way to work around this, so the current approach that I'm taking is
+        // to copy the diff out into a buffer. This is not the most performant.
+        //
+        // For updates about this issue, we can keep tabs on
+        //
+        //     https://github.com/rust-lang/git2-rs/issues/622
+        //
+        fn copy_diff(diff: &Diff) -> Result<Vec<u8>> {
+            let mut buffer = vec![];
+            diff.print(DiffFormat::Patch, |_, _, line| {
+                let origin = line.origin();
 
-            if origin == '+' || origin == '-' || origin == ' ' {
-                unstaged_diff_buffer.push(origin as u8);
-            }
+                if origin == '+' || origin == '-' || origin == ' ' {
+                    buffer.push(origin as u8);
+                }
 
-            unstaged_diff_buffer.append(&mut line.content().to_vec());
-            true
-        })?;
+                buffer.append(&mut line.content().to_vec());
+                true
+            })?;
+            Ok(buffer)
+        }
 
-        Ok(Some(unstaged_diff_buffer))
+        Ok(Some(copy_diff(&unstaged_diff)?))
     }
 
     fn hide_partially_staged_changes(&self) -> Result<()> {
