@@ -41,7 +41,8 @@ impl Workflow {
 
         if let Some(filter) = filter {
             let glob_matcher = Glob::new(filter)?.compile_matcher();
-            staged_files = staged_files.into_iter()
+            staged_files = staged_files
+                .into_iter()
                 .filter(|path| glob_matcher.is_match(path))
                 .collect();
         }
