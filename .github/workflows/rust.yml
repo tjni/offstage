@@ -20,10 +20,10 @@ jobs:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
-      SHELL: bash
+      SHELL: /bin/bash
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: echo $0 && cargo build --verbose
+      run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
