@@ -212,6 +212,10 @@ impl GitRepository {
     fn hide_partially_staged_changes(&self) -> Result<()> {
         let partially_staged_files = self.get_partially_staged_files(false)?;
 
+        if partially_staged_files.is_empty() {
+            return Ok(());
+        }
+
         let mut checkout_options = CheckoutBuilder::new();
         checkout_options.force();
         checkout_options.update_index(false);

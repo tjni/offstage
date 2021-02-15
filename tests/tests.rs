@@ -175,7 +175,7 @@ fn unstaged_file_remains_after_command_succeeds() -> Result<()> {
 fn append_line<P: AsRef<Path>>(path: P, line: &str) -> Result<()> {
     let mut file = OpenOptions::new().append(true).open(path.as_ref())?;
 
-    writeln!(file, "\n{}", line)?;
+    writeln!(file, "{}", line)?;
 
     Ok(())
 }
