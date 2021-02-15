@@ -15,18 +15,18 @@ impl TestRepository {
     }
 
     pub fn initial_commit(&mut self) -> Result<()> {
-        let workdir = self
+        let working_dir = self
             .repository
             .workdir()
             .ok_or_else(|| anyhow!("Could not find the working directory."))?;
 
         let relative_path = Path::new("README");
         writeln!(
-            File::create(&workdir.join(relative_path))?,
+            File::create(&working_dir.join(relative_path))?,
             "An example README."
         )?;
 
-        let index = self.add_to_index(relative_path)?;
+        let index = self.stage_path(relative_path)?;
         let signature = Self::get_signature()?;
 
         self.repository.commit(
@@ -41,11 +41,10 @@ impl TestRepository {
         Ok(())
     }
 
-    fn add_to_index(&mut self, relative_path: &Path) -> Result<Oid> {
+    pub fn stage_path<P: AsRef<Path>>(&mut self, relative_path: P) -> Result<Oid> {
         let mut index = self.repository.index()?;
-        index.add_path(relative_path)?;
+        index.add_path(relative_path.as_ref())?;
         index.write()?;
-
         Ok(index.write_tree()?)
     }
 

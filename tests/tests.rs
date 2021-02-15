@@ -3,6 +3,8 @@ use duct::cmd;
 use repository::TestRepository;
 use std::env;
 use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
 
@@ -71,6 +73,55 @@ fn empty_stage_in_repository_skips_command() -> Result<()> {
         stdout,
         marker
     );
+
+    Ok(())
+}
+
+#[test]
+fn untracked_file_remains_after_command_succeeds() -> Result<()> {
+    // Given
+    let working_dir = initialize("untracked_file_remains_after_command_succeeds")?;
+
+    let mut repository = TestRepository::new(&working_dir)?;
+
+    repository.initial_commit()?;
+
+    let readme_relative_path = "README";
+    let mut readme_file = OpenOptions::new()
+        .append(true)
+        .open(&working_dir.join(readme_relative_path))?;
+
+    writeln!(readme_file, "A new line!")?;
+
+    repository.stage_path(readme_relative_path)?;
+
+    let untracked_file_relative_path = "untracked.txt";
+    let untracked_file = &working_dir.join(untracked_file_relative_path);
+    writeln!(
+        File::create(untracked_file)?,
+        "This text file is untracked."
+    )?;
+
+    // When
+    let marker = "marker";
+    let stdout = cmd!(BINARY_NAME, "echo", marker).dir(&working_dir).read()?;
+
+    // Then
+    assert!(
+        stdout.contains(marker),
+        "Output \"{}\" should contain \"{}\".",
+        stdout,
+        marker
+    );
+
+    assert!(
+        !stdout.contains(untracked_file_relative_path),
+        "Output \"{}\" should not contain \"{}\".",
+        stdout,
+        untracked_file_relative_path
+    );
+
+    assert!(untracked_file.is_file(), "The untracked file should still exist.");
 
     Ok(())
 }
