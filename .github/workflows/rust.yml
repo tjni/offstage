@@ -19,6 +19,8 @@ jobs:
           - windows-latest
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      SHELL: bash
     steps:
     - uses: actions/checkout@v2
     - name: Build
