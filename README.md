@@ -1,5 +1,4 @@
 # offstage
-blah
 
 ## Developing
 
