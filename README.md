@@ -2,6 +2,8 @@
 
 ![build](https://github.com/tjni/offstage/workflows/build/badge.svg)
 
+Runs commands against staged Git files.
+
 ## Usage
 
 An example best illustrates how to use offstage.
