@@ -1,5 +1,7 @@
 # offstage
 
+![build](https://github.com/tjni/offstage/workflows/build/badge.svg)
+
 ## Usage
 
 An example best illustrates how to use offstage.
