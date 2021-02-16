@@ -197,7 +197,7 @@ impl GitRepository {
         // The Diff created by diff_index_to_workdir is owned by the repository.
         // It means storing this diff separately isn't possible, and it is also
         // difficult to store it along with the repository together in a struct,
-        // because that struct then wll have a self reference between its diff
+        // because that struct then will have a self reference between its diff
         // and its repository.
         //
         // I'm not comfortable enough with ownership to understand the correct
