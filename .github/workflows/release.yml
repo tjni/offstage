@@ -1,0 +1,124 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  linux:
+    name: Build - Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose --release
+      - name: Package
+        run: tar -zcv -C target/release -f offstage.tar.gz offstage
+      - uses: actions/upload-artifact@v2
+        with:
+          name: linux
+          path: offstage-linux.tar.gz
+
+  macos:
+    name: Build - MacOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose --release
+      - name: Package
+        run: tar -zcv -C target/release -f offstage.tar.gz offstage
+      - uses: actions/upload-artifact@v2
+        with:
+          name: macos
+          path: offstage-macos.tar.gz
+
+  macos-aarch64:
+    name: Build - MacOS (ARM)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up cargo
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          target: aarch64-apple-darwin
+          override: true
+      - name: Build
+        run: SDKROOT=$(xcrun -sdk macosx11.1 --show-sdk-path) MACOSX_DEPLOYMENT_TARGET=11.0 cargo build --verbose --release --target=aarch64-apple-darwin
+      - name: Package
+        run: tar -zcv -C target/aarch64-apple-darwin/release -f offstage.tar.gz offstage
+      - uses: actions/upload-artifact@v2
+        with:
+          name: macos-aarch64
+          path: offstage-macos-aarch64.tar.gz
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs:
+      - linux
+      - macos
+      - macos-aarch64
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Determine release version
+        id: release_info
+        env:
+          TAG: ${{ github.ref }}
+        run: echo "::set-output name=version::${TAG:11}"
+      - name: Fetch Linux artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: linux
+          path: release
+      - name: Fetch MacOS artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: macos
+          path: release
+      - name: Fetch MacOS (ARM) artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: macos-aarch64
+          path: release
+      - name: Show release artifacts
+        run: ls -la release
+      - name: Create draft release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+      - name: Upload Linux artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release/offstage-linux.tar.gz
+          asset_name: offstage-${{ steps.release_info.outputs.version }}-linux.tar.gz
+          asset_content_type: application/gzip
+      - name: Upload MacOS artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release/offstage-macos.tar.gz
+          asset_name: offstage-${{ steps.release_info.outputs.version }}-macos.tar.gz
+          asset_content_type: applictaion/gzip
+      - name: Upload MacOS (ARM) artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release/offstage-macos-aarch64.tar.gz
+          asset_name: offstage-${{ steps.release_info.outputs.version }}-macos-aarch64.tar.gz
+          asset_content_type: application/gzip
