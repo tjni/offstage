@@ -1,6 +1,6 @@
 # offstage
 
-![build](https://github.com/tjni/offstage/workflows/build/badge.svg) ![Crates.io](https://img.shields.io/crates/v/offstage)
+![build](https://github.com/tjni/offstage/workflows/build/badge.svg) [![Crates.io](https://img.shields.io/crates/v/offstage)](https://crates.io/crates/offstage)
 
 Runs commands against staged Git files.
 
