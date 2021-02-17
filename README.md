@@ -1,4 +1,5 @@
 # offstage
+> on a part of the stage not visible to the audience
 
 ![build](https://github.com/tjni/offstage/workflows/build/badge.svg) [![Crates.io](https://img.shields.io/crates/v/offstage)](https://crates.io/crates/offstage)
 
@@ -70,4 +71,4 @@ ls -alh target/release/offstage
 ## Attribution
 
 This would not exist if not for the inspiration and methodology from the amazing
-<b>[lint-staged](https://github.com/okonet/lint-staged)</b> project.
+[lint-staged](https://github.com/okonet/lint-staged) project.
