@@ -92,12 +92,3 @@ jobs:
           asset_path: ./release/offstage-macos.tar.gz
           asset_name: offstage-${{ steps.release_info.outputs.version }}-macos.tar.gz
           asset_content_type: applictaion/gzip
-      - name: Upload MacOS (ARM) artifact
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/offstage-macos-aarch64.tar.gz
-          asset_name: offstage-${{ steps.release_info.outputs.version }}-macos-aarch64.tar.gz
-          asset_content_type: application/gzip
