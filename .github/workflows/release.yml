@@ -34,34 +34,12 @@ jobs:
           name: macos
           path: offstage-macos.tar.gz
 
-  macos-aarch64:
-    name: Build - MacOS (ARM)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up cargo
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          target: aarch64-apple-darwin
-          override: true
-      - name: Build
-        run: SDKROOT=$(xcrun -sdk macosx11.1 --show-sdk-path) MACOSX_DEPLOYMENT_TARGET=11.0 cargo build --verbose --release --target=aarch64-apple-darwin
-      - name: Package
-        run: tar -zcv -C target/aarch64-apple-darwin/release -f offstage-macos-aarch64.tar.gz offstage
-      - uses: actions/upload-artifact@v2
-        with:
-          name: macos-aarch64
-          path: offstage-macos-aarch64.tar.gz
-
   release:
     name: Release
     runs-on: ubuntu-latest
     needs:
       - linux
       - macos
-      - macos-aarch64
     steps:
       - name: Check out code
         uses: actions/checkout@v2
