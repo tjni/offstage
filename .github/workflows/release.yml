@@ -14,7 +14,7 @@ jobs:
       - name: Build
         run: cargo build --verbose --release
       - name: Package
-        run: tar -zcv -C target/release -f offstage.tar.gz offstage
+        run: tar -zcv -C target/release -f offstage-linux.tar.gz offstage
       - uses: actions/upload-artifact@v2
         with:
           name: linux
@@ -28,7 +28,7 @@ jobs:
       - name: Build
         run: cargo build --verbose --release
       - name: Package
-        run: tar -zcv -C target/release -f offstage.tar.gz offstage
+        run: tar -zcv -C target/release -f offstage-macos.tar.gz offstage
       - uses: actions/upload-artifact@v2
         with:
           name: macos
@@ -49,7 +49,7 @@ jobs:
       - name: Build
         run: SDKROOT=$(xcrun -sdk macosx11.1 --show-sdk-path) MACOSX_DEPLOYMENT_TARGET=11.0 cargo build --verbose --release --target=aarch64-apple-darwin
       - name: Package
-        run: tar -zcv -C target/aarch64-apple-darwin/release -f offstage.tar.gz offstage
+        run: tar -zcv -C target/aarch64-apple-darwin/release -f offstage-macos-aarch64.tar.gz offstage
       - uses: actions/upload-artifact@v2
         with:
           name: macos-aarch64
