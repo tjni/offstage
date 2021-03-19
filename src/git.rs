@@ -334,15 +334,10 @@ impl GitRepository {
 
         let stash_result = self
             .repository
-            .stash_save(&signature, "offstage backup", None);
+            .stash_create(&signature, None, None);
 
-        // Until save_snapshot_stash can use a non-destructive stash (which maps
-        // to command `git stash create` and `git stash store`), which needs to
-        // be supported by libgit2, we need to apply the stash to bring back files.
-        //
         if let Ok(stash_id) = stash_result {
-            self.apply_stash(&stash_id)?;
-            self.restore_merge_status(&merge_status)?;
+            self.repository.stash_store(&stash_id, Some("offstage backup"))?;
         }
 
         match stash_result {

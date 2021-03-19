@@ -145,8 +145,7 @@ dependencies = [
 [[package]]
 name = "git2"
 version = "0.13.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d250f5f82326884bd39c2853577e70a121775db76818ffa452ed1e80de12986"
+source = "git+https://github.com/tjni/git2-rs?branch=stash-create-and-store#febd1a155be514cf33d7a43c0cee3e136b9e5368"
 dependencies = [
  "bitflags",
  "libc",
@@ -241,8 +240,7 @@ checksum = "03b07a082330a35e43f63177cc01689da34fbffa0105e1246cf0311472cac73a"
 [[package]]
 name = "libgit2-sys"
 version = "0.12.18+1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3da6a42da88fc37ee1ecda212ffa254c25713532980005d5f7c0b0fbe7e6e885"
+source = "git+https://github.com/tjni/git2-rs?branch=stash-create-and-store#febd1a155be514cf33d7a43c0cee3e136b9e5368"
 dependencies = [
  "cc",
  "libc",
@@ -302,7 +300,7 @@ checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
 
 [[package]]
 name = "offstage"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "duct",
